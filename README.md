@@ -1,104 +1,145 @@
 # MoeNotes Chart Parser
 
-MoeNotes Chart Parser is a small, embeddable C17 library and command-line tool
-for parsing the recovered MoeNotes live-chart format. It is designed as a
-foundation for offline chart inspection, note-command generation, and future
-score simulation. The project has no network, device, game-client, or
-credential-handling component.
+MoeNotes Chart Parser is an offline C17 library and command-line tool for reading
+MoeNotes SS JSON charts. It provides note geometry, timing, line relationships,
+and chart events for preview renderers and analysis tools.
 
-## Features
+Version **0.1.0** establishes the public `moenotes_*` API baseline. This project
+is an independent format reconstruction, not a client-equivalent gameplay or
+scoring engine. It does not download charts, connect to game services, or include
+game assets.
 
-- Parses UTF-8 chart JSON and gzip-wrapped chart JSON in memory.
-- Expands tap, flick, trace, long, and guide notes into stable note records.
-- Converts ticks to millisecond and bar positions using BPM and time-signature
-  segments.
-- Supports mirror-lane transformation and flick direction mirroring.
-- Exposes pair-note and line membership metadata through read-only accessors.
-- Optionally derives slide Combo and ComboSkip records.
-- Optionally materializes bookkeeping Hidden records associated with flicks on
-  active long-note lines.
-- Exposes judgement filtering, Full Combo Count calculation, and score-command
-  adaptation.
-- Uses opaque score handles, explicit result codes, and caller-provided
-  allocator hooks.
-- Includes a JSON CLI suitable for scripts and regression comparisons.
+## Supported Features
 
-The parser is intentionally offline. It does not fetch charts, call service
-APIs, access Android devices, or process authentication material.
+- JSON and gzip-compressed JSON, parsed directly from memory.
+- Tap, flick, trace, long, and guide notes, including hidden control points.
+- BPM changes, time signatures, and tick-to-time conversion.
+- Automatic positions, independent edge easing, floating-point widths, and mirroring.
+- Visibility, alpha, critical flags, line memberships, and tick-space line sampling.
+- Skill, fever, and call events, including call timing arrays.
+- Explicit errors, copy-based accessors, and optional custom allocators.
+- Opt-in, experimental Combo/ComboSkip and explicitly associated Flick-hidden nodes.
 
-## Build
+All 139 JSON charts in an external historical corpus pass the compatibility
+runner. The corpus also contains 64 legacy SUS-like text charts, which are
+**not supported**. Native graph ordering and exact gameplay-derived values remain
+partially unverified. See [Compatibility](docs/compatibility.md) for the tested
+scope and known limitations. Successful parsing does not prove native equivalence.
 
-Requirements: C17 compiler, CMake 3.16 or newer, and zlib.
+## Installation
+
+Requires a C17 compiler, CMake 3.16 or newer, and the zlib development package.
+For example, on Debian or Ubuntu:
 
 ```sh
-cmake -S . -B build -DMS_BUILD_TESTS=ON -DMS_BUILD_CLI=ON
-cmake --build build
+sudo apt install build-essential cmake zlib1g-dev
+```
+
+Build, test, and install from the repository root:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
+cmake --install build
 ```
 
-Build a static library with the Android NDK:
+This installs the static library, public header, CLI, CMake package, and
+documentation. Add `$HOME/.local/bin` to `PATH` to run the CLI by name.
+Use `-DMOENOTES_BUILD_CLI=OFF` or `-DMOENOTES_BUILD_TESTS=OFF` to omit those targets.
+Linux with GCC 13 and Clang 18 is tested; Windows and Android NDK are not yet validated.
+
+In a consuming CMake project:
+
+```cmake
+find_package(moenotes-chart-parser 0.1.0 CONFIG REQUIRED)
+target_link_libraries(your_app PRIVATE moenotes::chart_parser)
+```
+
+Configure the consumer with `-DCMAKE_PREFIX_PATH="$HOME/.local"` when needed.
+The imported target supplies the include path and zlib/math link dependencies.
+For a vendored build, use `add_subdirectory(path/to/moenotes-chart-parser)` and
+link the same `moenotes::chart_parser` target.
+
+## Minimal C Example
+
+The following complete program is also available as [examples/basic.c](examples/basic.c).
+Passing `NULL` for the options and allocator selects the defaults.
+
+```c
+#include <moenotes_chart_parser.h>
+#include <inttypes.h>
+#include <stdio.h>
+
+int main(void) {
+    const char json[] = "{\"score\":{\"events\":{},\"notes\":["
+                        "{\"type\":\"tap\",\"t\":480,\"pos\":2,\"size\":4}]}}";
+    moenotes_score_t *score = NULL;
+    char error[128];
+    moenotes_result_t result = moenotes_score_parse(
+        json, sizeof(json) - 1, NULL, NULL, &score, error, sizeof(error));
+    if (result != MOENOTES_OK) {
+        fprintf(stderr, "%s\n", error);
+        return 1;
+    }
+
+    moenotes_note_view_t note;
+    result = moenotes_score_note_at(score, 0, &note);
+    if (result == MOENOTES_OK) {
+        printf("tick=%" PRId32 " time=%" PRId32 "ms left=%.1f width=%.1f\n",
+               note.tick, note.position.time_ms, note.lane_start_float, note.width);
+    }
+    moenotes_score_free(score);
+    return result == MOENOTES_OK ? 0 : 1;
+}
+```
+
+Expected output: `tick=480 time=500ms left=2.0 width=4.0`.
+The input buffer can be released after parsing; free the returned handle with
+`moenotes_score_free`.
+
+## CLI Usage
 
 ```sh
-cmake -S . -B build-android \
-  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a \
-  -DMS_BUILD_CLI=OFF \
-  -DMS_BUILD_TESTS=OFF
-cmake --build build-android
+moenotes-chart-parser --version
+moenotes-chart-parser --help
+moenotes-chart-parser parse chart.json > parsed.json
+moenotes-chart-parser parse chart.json.gz --mirror > mirrored.json
+moenotes-chart-parser parse chart.json --combo-unit 8 --flick-hidden > derived.json
 ```
 
-## CLI
+| Option | Effect |
+| --- | --- |
+| `--mirror` | Reflect lane geometry and left/right directions. |
+| `--combo-unit 0` | Disable derived slide combos; this is the default. |
+| `--combo-unit 8` | Enable experimental relative-eighth Combo/ComboSkip generation. |
+| `--flick-hidden` | Enable experimental hidden nodes for explicit Flick line-slot associations. |
 
-```sh
-./build/moenotes-chart-parser parse chart.json
-./build/moenotes-chart-parser parse chart.json --mirror --combo-unit 8
-```
+`parse` writes one JSON object to stdout, with notes, BPM/signature events,
+additional events, warning flags, and counts. Diagnostics go to stderr.
+Exit codes are `0` for success, `1` for read/parse failures, and `2` for invalid
+arguments. `--flick-hidden` normally adds nothing to native SS JSON, whose
+standalone Flicks do not carry line-slot associations.
 
-JSON is written to stdout. A short human-readable summary and diagnostics are
-written to stderr. The library API is declared in
-`include/music_score.h`.
+## API Documentation
 
-## Library API
+- [API reference and compatibility policy](docs/api.md): every public function,
+  data structures, ownership, geometry conventions, and versioning rules.
+- [Public header](include/moenotes_chart_parser.h): the C/C++ interface.
+- [Compatibility](docs/compatibility.md): format extensions and unverified behavior.
+- [Development](docs/development.md): tests, sanitizers, fuzzing, and release checks.
+- [Changelog](CHANGELOG.md): version history and migration notes.
 
-The public API uses an opaque `ms_score_t` handle. Callers pass a byte buffer to
-`ms_score_parse`, inspect records with read-only accessors, and release the
-result with `ms_score_free`. The parser accepts optional `ms_allocator_t`
-callbacks so an embedding application can control memory ownership.
-
-The parser returns explicit `ms_result_t` values for invalid arguments, memory
-allocation failures, gzip failures, JSON errors, schema errors, and range
-errors. No exceptions or global mutable parser state are used.
-
-## Validation
-
-An offline golden chart fixture is used for regression validation. With
-`--combo-unit 8`, the current implementation produces:
-
-| Metric | Result |
-| --- | ---: |
-| Base nodes | 522 |
-| Base judgement nodes | 514 |
-| Combo nodes | 96 |
-| ComboSkip nodes | 3 |
-| Final judgement count | 610 |
-
-The C implementation matches the established offline reference for these
-counts. The test suite also covers gzip input, mirror lanes, line accessors,
-and allocator-safe cleanup. AddressSanitizer and UndefinedBehaviorSanitizer
-are used during local verification.
-
-## Scope and limitations
-
-This is an offline parser, not a complete gameplay or score simulator. The
-current implementation preserves the `pos:auto` marker but does not yet apply
-multi-point interpolation for it. Malformed-chart diagnostics are deliberately
-minimal and may be expanded as more chart variants are validated.
-
-`third_party/yyjson.{c,h}` is vendored under its MIT license. See the license
-notice at the top of those files. Project source is licensed under the MIT
-license in `LICENSE`.
+Versions use `MAJOR.MINOR.PATCH`. The v0.1.x public C API is frozen;
+compatible fixes must preserve existing declarations and structure layouts.
+Experimental algorithm outputs may be corrected without changing the interface.
+Breaking changes require an explicitly documented version boundary, never a
+silent patch update. See the API reference for the full policy.
 
 ## License
 
-The project source is released under the MIT License. The vendored yyjson
-source retains its original copyright and license notice.
+Project code is licensed under the [MIT License](LICENSE).
+Vendored yyjson is MIT licensed under its [upstream notice](third_party/LICENSE.yyjson).
+The external zlib dependency uses the [zlib License](https://zlib.net/zlib_license.html).
+These licenses do not grant rights to third-party charts or game assets.
