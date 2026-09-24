@@ -32,7 +32,7 @@ def validate(score):
         assert len(line["members"]) == len(set(line["members"]))
         assert all(n in ids for n in line["members"])
         members = [by_id[n] for n in line["members"]]
-        assert [(n["tick"], n["id"]) for n in members] == sorted((n["tick"], n["id"]) for n in members)
+        assert [n["tick"] for n in members] == sorted(n["tick"] for n in members)
     for note in notes:
         for key in ("parent_note_id", "pair_note_id", "hidden_for_note_id"):
             assert note[key] == -1 or note[key] in ids, (key, note)
@@ -40,6 +40,21 @@ def validate(score):
             assert math.isfinite(note[key]), (key, note)
         assert note["time_ms"] >= 0
         assert note["width"] >= 0
+        assert note["source_geometry"]["width"] >= 0
+        if note["fever_event_index"] >= 0:
+            event = score["events"][note["fever_event_index"]]
+            assert event["type"] == 1
+            assert event["time_ms"] <= note["time_ms"] <= event["end_time_ms"]
+    for event in score["events"]:
+        if event["type"] == 2:
+            expected = [(i + 1) / len(event["values"])
+                        for i, value in enumerate(event["values"]) if value == 1]
+            assert len(event["rhythms"]) == len(expected)
+            assert all(abs(a - b) < 1e-7 for a, b in zip(event["rhythms"], expected))
+        else:
+            assert not event["rhythms"]
+    assert all(value is not None and value >= 0 for value in score["bar_line_times_ms"])
+    assert set(score["last_timing_note_ids"]) <= ids
 
 
 def main():

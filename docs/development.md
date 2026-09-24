@@ -9,7 +9,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 Assertions remain enabled in Release tests. The API contract test pins the
-retained declarations and v0.2.0 additions:
+retained declarations and v0.3.0 additions:
 enum values, public structure field types/offsets/sizes, function signatures,
 defaults, null handling, and selected behavioral contracts. It is a regression
 guard, not an exhaustive ABI or semantic proof. Do not change the baseline
@@ -35,6 +35,16 @@ to this repository:
 ```sh
 python3 tests/check_corpus.py build/moenotes-chart-parser /path/to/MusicScore
 ```
+
+Independently produced native snapshots can also be checked without embedding
+game materials in this repository:
+
+```sh
+python3 tests/check_native.py build/moenotes-chart-parser /path/to/MusicScore /path/to/snapshots
+```
+
+See [the snapshot contract](native-differential.md). Record native failures and
+coverage separately; never replace native fields with parser output.
 
 ## Sanitizers and Fuzzing
 

@@ -4,8 +4,9 @@ MoeNotes Chart Parser is an offline C17 library and command-line tool for readin
 MoeNotes SS JSON charts. It provides note geometry, timing, line relationships,
 and chart events for preview renderers and analysis tools.
 
-Version **0.2.0** corrects note timing, mirroring, and creator-style pairing.
-See the [migration guide](docs/api.md#migration-from-v01x) for behavior changes.
+Version **0.3.0** adds final note geometry and event projections, and corrects
+BPM accumulation and shared guide starts.
+See the [migration guide](docs/api.md#migration-from-v02x) for behavior changes.
 This project is an independent format reconstruction, not a client-equivalent gameplay or
 scoring engine. It does not download charts, connect to game services, or include
 game assets.
@@ -18,15 +19,18 @@ game assets.
 - Automatic positions, independent edge easing, floating-point widths, and mirroring.
 - Visibility, alpha, critical flags, indexed line memberships, and source-branch endpoints.
 - Separate rendering and experimental judgement-geometry line sampling.
-- Skill, fever, and call events, including call timing arrays.
+- Source and final note geometry, including automatic-connection postprocessing.
+- Skill, fever, and call events, raw timing arrays, Call rhythm fractions, and Fever membership.
+- Bar-line timing and final timing-group queries.
 - Explicit errors, copy-based accessors, and optional custom allocators.
 - Opt-in, experimental Combo/ComboSkip and explicitly associated Flick-hidden nodes.
 
 All 356 JSON charts in the current external corpus pass default, derived,
 mirrored, repeated, and gzip compatibility checks. Four additional legacy
-SUS-like text assets remain **unsupported**. Bounded native-function tests
-support the timing and geometry corrections; complete native graph equivalence
-remains unverified. See [Compatibility](docs/compatibility.md).
+SUS-like text assets remain **unsupported**. The 356 charts also pass 712 normal
+and mirrored native snapshot comparisons covering 412,674 nodes, with scoped
+CLR/Newtonsoft adapters and ID normalization. See [Compatibility](docs/compatibility.md)
+for the exact coverage and remaining boundaries.
 
 ## Installation
 
@@ -55,7 +59,7 @@ Linux with GCC 13 and Clang 18 is tested; Windows and Android NDK are not yet va
 In a consuming CMake project:
 
 ```cmake
-find_package(moenotes-chart-parser 0.2.0 CONFIG REQUIRED)
+find_package(moenotes-chart-parser 0.3.0 CONFIG REQUIRED)
 target_link_libraries(your_app PRIVATE moenotes::chart_parser)
 ```
 
@@ -120,7 +124,8 @@ moenotes-chart-parser parse chart.json --combo-unit 8 --flick-hidden > derived.j
 
 `parse` writes one JSON object to stdout, with notes, BPM/signature events,
 additional events, source lines with canonical endpoints/members, warning flags,
-and counts. Diagnostics go to stderr.
+source geometry, Call rhythm fractions, Fever indices, bar-line times, final
+timing-group IDs, and counts. Diagnostics go to stderr.
 Exit codes are `0` for success, `1` for read/parse failures, and `2` for invalid
 arguments. `--flick-hidden` normally adds nothing to native SS JSON, whose
 standalone Flicks do not carry line-slot associations.
@@ -132,6 +137,7 @@ standalone Flicks do not carry line-slot associations.
 - [Public header](include/moenotes_chart_parser.h): the C/C++ interface.
 - [Compatibility](docs/compatibility.md): format extensions and unverified behavior.
 - [Development](docs/development.md): tests, sanitizers, fuzzing, and release checks.
+- [Native differential checks](docs/native-differential.md): external snapshot contract and runner.
 - [Changelog](CHANGELOG.md): version history and migration notes.
 
 Versions use `MAJOR.MINOR.PATCH`. Compatible fixes within a minor series

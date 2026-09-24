@@ -5,11 +5,11 @@
 #include <stdint.h>
 
 #define MOENOTES_VERSION_MAJOR 0
-#define MOENOTES_VERSION_MINOR 2
+#define MOENOTES_VERSION_MINOR 3
 #define MOENOTES_VERSION_PATCH 0
-#define MOENOTES_VERSION_STRING "0.2.0"
+#define MOENOTES_VERSION_STRING "0.3.0"
 
-/* Public v0.2.0 contract: see docs/api.md for ownership and migration. */
+/* Public v0.3.0 contract: see docs/api.md for ownership and migration. */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -205,6 +205,9 @@ void moenotes_score_free(moenotes_score_t *score);
 size_t moenotes_score_note_count(const moenotes_score_t *score);
 moenotes_result_t moenotes_score_note_at(const moenotes_score_t *score, size_t index,
                                          moenotes_note_view_t *out_note);
+/* Same enumeration and IDs, with geometry before final-line processing. */
+moenotes_result_t moenotes_score_source_note_at(const moenotes_score_t *score, size_t index,
+                                                moenotes_note_view_t *out_note);
 int32_t moenotes_score_lane_count(const moenotes_score_t *score);
 /* Nonzero flags identify inputs that need additional native graph validation. */
 uint32_t moenotes_score_warnings(const moenotes_score_t *score);
@@ -224,6 +227,21 @@ moenotes_result_t moenotes_score_event_at(const moenotes_score_t *score, size_t 
                                           moenotes_event_t *out_event);
 moenotes_result_t moenotes_score_event_value_at(const moenotes_score_t *score, size_t event_index,
                                                 size_t value_index, int32_t *out_value);
+/* Call entries equal to 1 become float32 (index + 1) / timing_count. */
+size_t moenotes_score_call_rhythm_count(const moenotes_score_t *score, size_t event_index);
+moenotes_result_t moenotes_score_call_rhythm_at(const moenotes_score_t *score, size_t event_index,
+                                               size_t rhythm_index, double *out_progress);
+/* Tick-clock bar heads through the last source-note bar, inclusive. */
+size_t moenotes_score_bar_line_count(const moenotes_score_t *score);
+moenotes_result_t moenotes_score_bar_line_at(const moenotes_score_t *score, size_t index,
+                                            moenotes_position_t *out_position);
+/* Final notes sharing the greatest float32 (bar + progress) position key. */
+size_t moenotes_score_last_timing_note_count(const moenotes_score_t *score);
+moenotes_result_t moenotes_score_last_timing_note_at(const moenotes_score_t *score, size_t index,
+                                                    moenotes_note_view_t *out_note);
+/* First Fever event containing this note's time (inclusive), or -1. */
+moenotes_result_t moenotes_score_note_fever_event(const moenotes_score_t *score, int32_t note_id,
+                                                 int32_t *out_event_index);
 size_t moenotes_score_line_count(const moenotes_score_t *score);
 moenotes_result_t moenotes_score_line_at(const moenotes_score_t *score, size_t index,
                                          moenotes_line_view_t *out_line);

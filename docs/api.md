@@ -2,9 +2,9 @@
 
 ## Version and Stability
 
-**v0.2.0 changes note timing, mirror metadata, and pairing behavior.**
+**v0.3.0 corrects BPM anchors, final auto geometry, and shared guide absorption.**
 Existing function signatures and structure layouts are retained; see
-[Migration from v0.1.x](#migration-from-v01x) before updating consumers. The supported
+[Migration from v0.2.x](#migration-from-v02x) before updating consumers. The supported
 interface consists of the declarations in `include/moenotes_chart_parser.h`, the documented
 behavior here, and the CMake target `moenotes::chart_parser`. The original build
 target `moenotes_chart_parser` remains available for source-tree builds.
@@ -111,7 +111,9 @@ values map to an internal-error diagnostic. Do not free or match on its wording.
 
 `moenotes_score_note_count(score)` returns the number of exposed, coalesced
 notes. `moenotes_score_note_at(score, index, out_note)` copies a
-`moenotes_note_view_t`. Enumeration is ascending by `tick`, then by `id`.
+`moenotes_note_view_t` with final geometry. `moenotes_score_source_note_at` uses
+the same indices and IDs but returns geometry before final line processing.
+Generated nodes are identical through both accessors. Enumeration is ascending by `tick`, then by `id`.
 IDs can have gaps and are not array indices. They are deterministic for the same
 input, options, and version, but are neither native IDs nor persistent identifiers.
 
@@ -121,7 +123,7 @@ input, options, and version, but are neither native IDs nor persistent identifie
 | `position` | Bar/progress/time representation described below. |
 | `lane_count` | 24, also returned by `moenotes_score_lane_count(score)`. |
 | `lane_start`, `lane_end` | Integer lane interval with an inclusive end. |
-| `lane_start_float`, `lane_end_float`, `width` | Floating-point geometry; the exclusive right edge is `lane_start_float + width`. |
+| `lane_start_float`, `lane_end_float`, `width` | Floating-point geometry with an inclusive right edge. Preserve the stored edge: reconstructing it from width can differ by one float32 ULP. |
 | `critical`, `visible` | Source flags, independent of judgement classification. |
 | `slide_along`, `pos_auto` | Automatic-position metadata for line nodes. |
 | `direction` | `NORMAL=0`, `LEFT=1`, `RIGHT=2`; mirror swaps left/right. |
@@ -136,7 +138,10 @@ input, options, and version, but are neither native IDs nor persistent identifie
 | `generated` | 1 for derived bookkeeping/combo nodes, 0 for source records. |
 
 Source integer geometry uses nearest-even rounding and a minimum integer width
-of one. Float widths can be zero, and float geometry should be used for drawing.
+of one. Final automatic Connection/ConnectionTrace geometry is interpolated
+after line setup, uses the note clock and source-left easing, and has floor/ceil
+integer coverage. Its source geometry remains available for rendering.
+Float widths can be zero, and float geometry should be used for drawing.
 Coordinates are not clamped to the 24-lane viewport. Generated combos instead
 use floor/ceil integer coverage. Float fields expose some float32 calculations
 as doubles; they do not promise full double-precision computation.
@@ -154,6 +159,9 @@ predicate or draw every generated record as a source-note sprite.
 
 Timing uses 480 ticks per quarter note, with 120 BPM and 4/4 defaults inserted
 at tick zero when necessary. Ticks and times are nonnegative int32 values.
+The BPM segment builder retains a double-precision cumulative elapsed time and
+rounds each segment anchor to the nearest even integer. It does not accumulate
+rounded anchors. Tick queries floor the local interval plus that stored anchor.
 
 `moenotes_score_position_at_tick(score, tick, out_position)` returns a
 `moenotes_position_t`: `bar` is zero-based, `rhythm` is the tick offset in the
@@ -189,10 +197,31 @@ timeline. Re-querying a generated tick need not reproduce its rounded position.
 
 BPMs/signatures are tick-sorted; duplicate ticks retain source order and the
 last entry at that tick is effective for the tick clock. Extra events are grouped by type
-(`SKILL=0`, `FEVER=1`, `CALL=2`), each in source order, not globally sorted.
+(`SKILL=0`, `FEVER=1`, `CALL=2`), not globally sorted. Skills retain source order;
+Fever and Call events are sorted by start tick, with source order retained for ties.
 For skill/call events, end equals start. Fever stores its explicit end.
-Only call events have `value_count` entries. Call values are retained as data,
-not interpreted as absolute ticks or scheduled commands.
+Only call events have `value_count` entries. Raw call values are retained.
+`moenotes_score_call_rhythm_count` / `moenotes_score_call_rhythm_at` expose the
+native rhythm projection: each entry equal to 1 contributes float32
+`(index + 1) / value_count`. Other values contribute nothing. Results are
+fractions in `(0, 1]`, not absolute ticks or scheduled commands. A non-Call
+event has count zero; querying one returns a range error.
+
+`moenotes_score_note_fever_event(score, note_id, out_event_index)` returns the
+first Fever event whose millisecond interval contains the note time, including
+both boundaries. The output is an index into the grouped event API, or -1 when
+there is no match. An unknown note ID returns a range error. Overlapping Fever
+intervals use the first matching event in the sorted list.
+
+`moenotes_score_bar_line_count` / `moenotes_score_bar_line_at` expose tick-clock
+bar heads from bar zero through the greatest source-note bar, inclusive. An
+empty score has bar zero. Unrepresentable bar-head time/tick queries return a
+range error; the parser does not allocate one object for every bar.
+
+`moenotes_score_last_timing_note_count` / `moenotes_score_last_timing_note_at`
+return final notes sharing the greatest float32 `bar + bar_progress` key, in
+library enumeration order. Empty scores have no last notes. These are all
+notes at the final position, including non-judgement nodes.
 
 ## Lines and Warnings
 
@@ -203,7 +232,7 @@ not interpreted as absolute ticks or scheduled commands.
 | `moenotes_score_note_line_count(score, note_id)` | Membership count; 0 for absent IDs or standalone notes. |
 | `moenotes_score_note_line_at(score, note_id, index, out_line_id)` | Membership in ascending line-ID order; an unknown ID is a range error. |
 | `moenotes_score_line_member_count(score, line_id)` | Number of exposed members; 0 for invalid lines. |
-| `moenotes_score_line_member_at(score, line_id, index, out_note)` | Member copy in global tick/ID order, including generated members. |
+| `moenotes_score_line_member_at(score, line_id, index, out_note)` | Final member copy in float32 bar/progress order, with creator order breaking ties, including generated members. |
 | `moenotes_score_sample_line(score, line_id, tick, out_sample)` | Source geometry in tick space over the inclusive first-to-last tick range. |
 | `moenotes_score_sample_judgement_line(score, line_id, tick, out_sample)` | Experimental creator geometry at a source tick: note-clock ratio, one source-left easing, and bar/progress fallback for equal milliseconds. |
 | `moenotes_score_warnings(score)` | Bitmask of nonfatal compatibility warnings. |
@@ -234,7 +263,7 @@ shared-line behavior is not authoritative; see [Compatibility](compatibility.md)
 | --- | --- | --- |
 | `MOENOTES_WARNING_NONE` | 0 | No currently recognized warning; not proof of native equivalence. |
 | `MOENOTES_WARNING_NONMONOTONIC_LINE` | 1 | Source node ticks decrease within at least one line. |
-| `MOENOTES_WARNING_SHARED_ENDPOINT` | 2 | Endpoints were coalesced; full native graph behavior is unverified. |
+| `MOENOTES_WARNING_SHARED_ENDPOINT` | 2 | Endpoints were coalesced; preserve their multiple source branches. This remains a compatibility advisory for untested graph shapes. |
 
 Treat this as a bitmask and tolerate future additional warning bits.
 
@@ -267,6 +296,23 @@ or unrepresentable times return `MOENOTES_ERR_RANGE`. Output contents are
 unspecified on error and must not be used. Indices are zero-based.
 Count queries, lane count, warnings, and full-combo count return zero for a NULL
 score. No function accepts dangling pointers or synchronizes destruction.
+
+## Migration from v0.2.x
+
+- Rebuild cached output: BPM changes can shift events, notes, ComboSkip decisions,
+  and sampled judgement geometry after tempo changes.
+- `note_at`, `line_member_at`, and `last_timing_note_at` return final auto geometry.
+  Use `source_note_at` or `sample_line` for the pre-processing rendering geometry.
+- Preserve the returned Combo right edge instead of reconstructing it from width.
+- All matching guide starts inherit the same first standalone overlap's type and
+  Flick direction. Critical/easing/geometry still come from each guide start.
+- Fever and Call event indices may change after sorting. Store the raw source
+  separately if original event order is required.
+- Line members use native position/creation ordering. At the same tick, Hidden
+  precedes Connection even when its library-local ID is larger. Global note
+  enumeration retains tick/ID order.
+- Update CMake requirements to `find_package(moenotes-chart-parser 0.3.0 CONFIG REQUIRED)`.
+  Existing public structure layouts and declarations are retained.
 
 ## Migration from v0.1.x
 

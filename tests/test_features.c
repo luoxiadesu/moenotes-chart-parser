@@ -36,6 +36,10 @@ static void test_auto(void) {
                        "{\"t\":1000,\"pos\":12,\"size\":6}]}]}";
     moenotes_score_t *s = parse(json, 0, 0, 0), *m = parse(json, 0, 1, 0);
     moenotes_note_view_t n = at(s, 1), b = at(s, 2), r = at(m, 1);
+    /* Source geometry remains independently accessible after final processing. */
+    assert(moenotes_score_source_note_at(s, 1, &n) == MOENOTES_OK);
+    assert(moenotes_score_source_note_at(s, 2, &b) == MOENOTES_OK);
+    assert(moenotes_score_source_note_at(m, 1, &r) == MOENOTES_OK);
     near(n.lane_start_float, 2.4);
     near(n.width, 7.92);
     near(b.lane_start_float, 4.5);

@@ -90,8 +90,11 @@ int main(int argc, char **argv) {
            moenotes_score_lane_count(score), moenotes_score_note_count(score),
            moenotes_score_full_combo_count(score, 1, 0), moenotes_score_warnings(score));
     for (size_t i = 0, n = moenotes_score_note_count(score); i < n; i++) {
-        moenotes_note_view_t note;
+        moenotes_note_view_t note, source;
         moenotes_score_note_at(score, i, &note);
+        moenotes_score_source_note_at(score, i, &source);
+        int32_t fever = -1;
+        moenotes_score_note_fever_event(score, note.id, &fever);
         printf("    "
                "{\"id\":%d,\"type\":%d,\"type_name\":\"%s\",\"tick\":%d,\"time_ms\":%d,\"lane_"
                "start\":%d,\"lane_end\":%d,\"line_id\":%d,\"parent_note_id\":%d,\"pair_note_id\":%"
@@ -103,11 +106,18 @@ int main(int argc, char **argv) {
         printf("\"lane_start_float\":%.9g,\"lane_end_float\":%.9g,\"width\":%.9g,\"direction\":%d,"
                "\"ease_left\":%d,\"ease_right\":%d,\"alpha\":%d,\"critical\":%u,\"visible\":%u,"
                "\"pos_auto\":%u,\"generated\":%u,\"line_index\":%d,\"hidden_for_note_id\":%d,"
-               "\"source_index\":%d}%s\n",
+               "\"source_index\":%d,\"bar\":%d,\"rhythm\":%d,\"rhythmic_unit\":%d,"
+               "\"bar_progress\":%.9g,\"slide_along\":%u,\"fever_event_index\":%d,"
+               "\"source_geometry\":{\"lane_start\":%d,\"lane_end\":%d,"
+               "\"lane_start_float\":%.9g,\"lane_end_float\":%.9g,\"width\":%.9g}}%s\n",
                note.lane_start_float, note.lane_end_float, note.width, note.direction,
                note.ease_left, note.ease_right, note.alpha, note.critical, note.visible,
                note.pos_auto, note.generated, note.line_index, note.hidden_for_note_id,
-               note.source_index, i + 1 == n ? "" : ",");
+               note.source_index, note.position.bar, note.position.rhythm,
+               note.position.rhythmic_unit, note.position.bar_progress, note.slide_along,
+               fever, source.lane_start, source.lane_end,
+               source.lane_start_float, source.lane_end_float, source.width,
+               i + 1 == n ? "" : ",");
     }
     printf("  ],\n  \"lines\": [");
     for (size_t i = 0, count = moenotes_score_line_count(score); i < count; i++) {
@@ -137,6 +147,12 @@ int main(int argc, char **argv) {
             moenotes_score_event_value_at(score, i, j, &v);
             printf("%s%d", j ? "," : "", v);
         }
+        printf("],\"rhythms\":[");
+        for (size_t j = 0, count = moenotes_score_call_rhythm_count(score, i); j < count; j++) {
+            double value;
+            moenotes_score_call_rhythm_at(score, i, j, &value);
+            printf("%s%.9g", j ? "," : "", value);
+        }
         printf("]}");
     }
     printf("],\n  \"signatures\": [");
@@ -152,6 +168,20 @@ int main(int argc, char **argv) {
         moenotes_score_bpm_at(score, i, &e);
         printf("%s{\"tick\":%d,\"bpm\":%.9g,\"time_ms\":%d}", i ? "," : "", e.tick, e.bpm,
                e.position.time_ms);
+    }
+    printf("],\n  \"bar_line_times_ms\": [");
+    for (size_t i = 0, count = moenotes_score_bar_line_count(score); i < count; i++) {
+        moenotes_position_t p;
+        if (moenotes_score_bar_line_at(score, i, &p) == MOENOTES_OK)
+            printf("%s%d", i ? "," : "", p.time_ms);
+        else
+            printf("%snull", i ? "," : "");
+    }
+    printf("],\n  \"last_timing_note_ids\": [");
+    for (size_t i = 0, count = moenotes_score_last_timing_note_count(score); i < count; i++) {
+        moenotes_note_view_t n;
+        moenotes_score_last_timing_note_at(score, i, &n);
+        printf("%s%d", i ? "," : "", n.id);
     }
     printf("]\n}\n");
     fprintf(stderr, "parsed %zu notes, full combo count %u\n", moenotes_score_note_count(score),

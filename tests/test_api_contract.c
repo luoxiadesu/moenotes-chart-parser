@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* v0.2.0 keeps the existing declaration layouts; behavioral migration is documented. */
+/* v0.3.0 keeps the existing declaration layouts; behavioral migration is documented. */
 #define ENUM_VALUE(name, value) _Static_assert(name == value, #name " changed")
 ENUM_VALUE(MOENOTES_OK, 0);
 ENUM_VALUE(MOENOTES_ERR_INVALID_ARGUMENT, 1);
@@ -179,6 +179,19 @@ FUNCTION(moenotes_score_position_at_tick, moenotes_result_t, const moenotes_scor
 FUNCTION(moenotes_score_note_position_at_tick, moenotes_result_t, const moenotes_score_t *, int32_t,
          moenotes_position_t *);
 FUNCTION(moenotes_score_event_count, size_t, const moenotes_score_t *);
+FUNCTION(moenotes_score_source_note_at, moenotes_result_t, const moenotes_score_t *, size_t,
+         moenotes_note_view_t *);
+FUNCTION(moenotes_score_call_rhythm_count, size_t, const moenotes_score_t *, size_t);
+FUNCTION(moenotes_score_call_rhythm_at, moenotes_result_t, const moenotes_score_t *, size_t,
+         size_t, double *);
+FUNCTION(moenotes_score_bar_line_count, size_t, const moenotes_score_t *);
+FUNCTION(moenotes_score_bar_line_at, moenotes_result_t, const moenotes_score_t *, size_t,
+         moenotes_position_t *);
+FUNCTION(moenotes_score_last_timing_note_count, size_t, const moenotes_score_t *);
+FUNCTION(moenotes_score_last_timing_note_at, moenotes_result_t, const moenotes_score_t *, size_t,
+         moenotes_note_view_t *);
+FUNCTION(moenotes_score_note_fever_event, moenotes_result_t, const moenotes_score_t *, int32_t,
+         int32_t *);
 FUNCTION(moenotes_score_event_at, moenotes_result_t, const moenotes_score_t *, size_t,
          moenotes_event_t *);
 FUNCTION(moenotes_score_event_value_at, moenotes_result_t, const moenotes_score_t *, size_t,
@@ -315,6 +328,6 @@ int main(void) {
     assert(strcmp(version, moenotes_version_string()) == 0);
     test_null_accessors();
     test_contract();
-    puts("v0.2.0 API contract passed");
+    puts("v0.3.0 API contract passed");
     return 0;
 }

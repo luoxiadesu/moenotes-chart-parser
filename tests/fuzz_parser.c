@@ -15,12 +15,30 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         for (size_t i = 0; i < moenotes_score_note_count(s); i++) {
             moenotes_note_view_t n;
             moenotes_score_note_at(s, i, &n);
+            moenotes_note_view_t source;
+            moenotes_score_source_note_at(s, i, &source);
+            int32_t fever;
+            moenotes_score_note_fever_event(s, n.id, &fever);
             moenotes_position_t p;
             moenotes_score_note_position_at_tick(s, n.tick, &p);
             for (size_t j = 0; j < moenotes_score_note_line_count(s, n.id); j++) {
                 int32_t line_id;
                 moenotes_score_note_line_at(s, n.id, j, &line_id);
             }
+        }
+        for (size_t i = 0; i < moenotes_score_event_count(s); i++)
+            for (size_t j = 0; j < moenotes_score_call_rhythm_count(s, i); j++) {
+                double progress;
+                moenotes_score_call_rhythm_at(s, i, j, &progress);
+            }
+        size_t bars = moenotes_score_bar_line_count(s);
+        if (bars) {
+            moenotes_position_t p;
+            moenotes_score_bar_line_at(s, bars - 1, &p);
+        }
+        for (size_t i = 0; i < moenotes_score_last_timing_note_count(s); i++) {
+            moenotes_note_view_t n;
+            moenotes_score_last_timing_note_at(s, i, &n);
         }
         for (size_t i = 0; i < moenotes_score_line_count(s); i++) {
             moenotes_line_view_t line;

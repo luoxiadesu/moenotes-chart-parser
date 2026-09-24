@@ -5,6 +5,31 @@ All notable project changes are recorded here. Versions use
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-24
+
+**Behavioral migration from 0.2.x:** public notes now expose final auto geometry;
+BPM segment anchors use cumulative nearest-even rounding; Fever and Call events
+are time-sorted. Existing declaration layouts are retained. Rebuild cached output
+and follow [the migration guide](docs/api.md#migration-from-v02x).
+
+- Preserve pre-processing geometry through `moenotes_score_source_note_at` while
+  final note and line-member accessors apply native Connection postprocessing.
+- Keep generated Combo right edges directly instead of reconstructing them from width.
+- Order line members by native position/creation order, including Hidden before
+  automatic Connection at the same tick; retain global tick/ID enumeration.
+- Fix shared guide starts to inherit the same first overlapping standalone note's
+  type and Flick direction, including repeated guide branches.
+- Keep the fractional cumulative BPM duration before rounding segment anchors;
+  tick queries still floor local elapsed time. Avoid cumulative truncation drift.
+- Add Call rhythm fractions, note-to-Fever association, bar-line positions, and
+  final timing-group accessors. Expose them and source geometry in CLI JSON.
+- Add native-derived synthetic cases, C API contract checks, and installed C++
+  coverage for the new accessors. Real chart/native artifacts remain external.
+- Add the portable external native-snapshot checker. All 356 charts in both
+  normal/mirrored modes (712 runs, 412,674 nodes) match the compared native fields,
+  ordered line membership, and event/assembly projections with documented runtime
+  adapters and ID normalization. Release and sanitizer corpus regressions pass.
+
 ## [0.2.0] - 2026-09-24
 
 **Behavioral migration from 0.1.x:** source-note times now use the creator's
@@ -82,6 +107,7 @@ the v0.1.x series; experimental derived values remain subject to corrections.
 - Windows and Android NDK builds are unvalidated. See
   [Compatibility](docs/compatibility.md) for the complete scope.
 
-[Unreleased]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luoxiadesu/moenotes-chart-parser/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(moenotes-consumer LANGUAGES C CXX)
-find_package(moenotes-chart-parser 0.2.0 CONFIG REQUIRED)
+find_package(moenotes-chart-parser 0.3.0 CONFIG REQUIRED)
 add_executable(consumer ../../examples/basic.c)
 target_link_libraries(consumer PRIVATE moenotes::chart_parser)
 add_executable(consumer-cpp cpp.cpp)

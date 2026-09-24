@@ -7,7 +7,7 @@
 #include <string.h>
 #include <zlib.h>
 
-#define MAX_INPUT (64u * 1024u * 1024u)
+#define MAX_CHART_INPUT (64u * 1024u * 1024u)
 #define MAX_RECORDS 1000000u
 #define PPQ 480
 #define LANES 24
@@ -24,8 +24,13 @@ typedef struct sig {
 } sig_t;
 typedef struct note {
     moenotes_note_view_t v;
+    moenotes_line_sample_t final_geometry;
+    int32_t final_lane_start, final_lane_end;
+    uint8_t has_final_geometry;
+    int32_t overlap_lane, overlap_width;
     uint32_t slots;
     size_t alias;
+    size_t creation_order;
     size_t membership_offset, membership_count;
 } note_t;
 typedef struct line {
@@ -324,13 +329,14 @@ static int build_timeline(moenotes_score_t *s, yyjson_val *ev) {
         s->bpms[0] = (bpm_t){.value = 120};
         s->bpm_count++;
     }
+    double cumulative_ms = 0;
     for (i = 1; i < s->bpm_count; i++) {
         bpm_t *b = &s->bpms[i], *p = b - 1;
-        double t =
-            floor(p->time_ms + (double)(b->tick - p->tick) * 60000.0 / (double)(p->value * 480.0f));
-        if (t > INT32_MAX)
+        cumulative_ms += (double)(b->tick - p->tick) * 60000.0 /
+                         (double)(p->value * 480.0f);
+        if (!isfinite(cumulative_ms) || cumulative_ms > INT32_MAX)
             return fail(s, MOENOTES_ERR_RANGE);
-        b->time_ms = (int32_t)t;
+        b->time_ms = even_round(cumulative_ms);
     }
     a = get(ev, "sig");
     if (a && !yyjson_is_arr(a))
@@ -431,6 +437,7 @@ static float bpm_at_time(const moenotes_score_t *s, int32_t time_ms) {
 static int build_extra_events(moenotes_score_t *s, yyjson_val *ev) {
     const char *keys[] = {"skill", "fever", "call"};
     for (int kind = 0; kind < 3; kind++) {
+        size_t begin = s->event_count;
         yyjson_val *a = get(ev, keys[kind]), *v;
         size_t i, n;
         if (a && !yyjson_is_arr(a))
@@ -474,6 +481,17 @@ static int build_extra_events(moenotes_score_t *s, yyjson_val *ev) {
                         return 0;
             }
         }
+        /* Native preserves skill order, but sorts Fever and Call by start tick. */
+        if (kind != 0)
+            for (size_t j = begin + 1; j < s->event_count; j++) {
+                event_t entry = s->events[j];
+                size_t k = j;
+                while (k > begin && s->events[k - 1].v.tick > entry.v.tick) {
+                    s->events[k] = s->events[k - 1];
+                    k--;
+                }
+                s->events[k] = entry;
+            }
     }
     return 1;
 }
@@ -525,6 +543,8 @@ static int read_note(moenotes_score_t *s, yyjson_val *raw, int source, note_t *o
     if (!number(s, get(raw, "size"), 6, 0, 100000, &width))
         return 0;
     geometry(v, (float)pos, (float)width);
+    out->overlap_lane = even_round((float)pos);
+    out->overlap_width = even_round((float)width);
     yyjson_val *ease = get(raw, "ease");
     if (yyjson_is_arr(ease)) {
         if (yyjson_arr_size(ease) != 2)
@@ -765,9 +785,9 @@ static int endpoint(int op) {
     return op == 20 || op == 22 || op == 41 || op == 42 || op == 61 || op == 62 || op == 80 ||
            op == 82 || (op >= 100 && op <= 105);
 }
-static int same_key(const moenotes_note_view_t *a, const moenotes_note_view_t *b) {
-    return a->tick == b->tick && a->lane_start == b->lane_start &&
-           a->lane_end - a->lane_start == b->lane_end - b->lane_start;
+static int same_overlap_key(const note_t *a, const note_t *b) {
+    return a->v.tick == b->v.tick && a->overlap_lane == b->overlap_lane &&
+           a->overlap_width == b->overlap_width;
 }
 static int same_endpoint_bucket(const moenotes_note_view_t *a, const moenotes_note_view_t *b) {
     float x = (float)a->position.bar + (float)a->position.bar_progress;
@@ -784,7 +804,7 @@ static void merge_graph(moenotes_score_t *s) {
             continue;
         for (size_t i = 0; i < s->note_count; i++) {
             moenotes_note_view_t *p = &s->notes[i].v;
-            if (p->line_id != -1 || s->notes[i].alias != SIZE_MAX || !same_key(v, p))
+            if (p->line_id != -1 || !same_overlap_key(&s->notes[line->first], &s->notes[i]))
                 continue;
             if (p->operate_type != 1 && p->operate_type != 40 && p->operate_type != 60)
                 continue;
@@ -792,7 +812,9 @@ static void merge_graph(moenotes_score_t *s) {
                               : p->operate_type == 40 ? MOENOTES_OP_GUIDE_BEGIN_FLICK
                                                       : MOENOTES_OP_GUIDE_BEGIN_TRACE;
             v->direction = p->direction;
-            s->notes[i].alias = line->first;
+            /* One overlap-key lookup is shared by every matching guide start. */
+            if (s->notes[i].alias == SIZE_MAX)
+                s->notes[i].alias = line->first;
             break;
         }
     }
@@ -1009,6 +1031,7 @@ static int add_combos(moenotes_score_t *s) {
             moenotes_line_sample_t sample;
             judgement_sample(&n.v.position, &ga, &gb, &sample);
             geometry(&n.v, (float)sample.lane_start, (float)sample.width);
+            n.v.lane_end_float = (float)sample.lane_end;
             n.v.lane_start = (int32_t)floor(sample.lane_start);
             n.v.lane_end = (int32_t)ceil(sample.lane_end);
             if (!append_note(s, n))
@@ -1121,6 +1144,7 @@ static int build_order(moenotes_score_t *s) {
     size_t prev = SIZE_MAX;
     for (size_t i = 0; i < source_count; i++) {
         size_t ix = entries[i].index;
+        s->notes[ix].creation_order = i;
         moenotes_note_view_t *v = &s->notes[ix].v;
         int op = v->operate_type;
         if (v->generated || (op != 1 && op != 20 && op != 22 && op != 40 && op != 41 && op != 42))
@@ -1131,6 +1155,9 @@ static int build_order(moenotes_score_t *s) {
         }
         prev = ix;
     }
+    for (size_t i = 0; i < s->note_count; i++)
+        if (s->notes[i].v.generated)
+            s->notes[i].creation_order = source_count + i;
     release(&s->alc, entries);
     return 1;
 }
@@ -1138,14 +1165,16 @@ static int build_order(moenotes_score_t *s) {
 typedef struct membership {
     size_t note;
     int32_t line, tick, id;
+    float position_key;
+    size_t creation_order;
 } membership_t;
 static int membership_cmp(const void *a, const void *b) {
     const membership_t *x = a, *y = b;
     if (x->line != y->line)
         return x->line < y->line ? -1 : 1;
-    if (x->tick != y->tick)
-        return x->tick < y->tick ? -1 : 1;
-    return x->id < y->id ? -1 : x->id > y->id;
+    if (x->position_key != y->position_key)
+        return x->position_key < y->position_key ? -1 : 1;
+    return x->creation_order < y->creation_order ? -1 : x->creation_order > y->creation_order;
 }
 /* Build both directions once. Aliases contribute all source memberships but
  * a canonical note appears only once within any particular source line. */
@@ -1165,7 +1194,8 @@ static int build_indices(moenotes_score_t *s) {
             continue;
         size_t c = canonical(s, i);
         const moenotes_note_view_t *v = &s->notes[c].v;
-        members[count++] = (membership_t){c, line, v->tick, v->id};
+        members[count++] = (membership_t){c, line, v->tick, v->id,
+            (float)v->position.bar + (float)v->position.bar_progress, s->notes[c].creation_order};
     }
     qsort(members, count, sizeof(*members), membership_cmp);
     size_t unique = 0;
@@ -1211,9 +1241,49 @@ static int build_indices(moenotes_score_t *s) {
     return 1;
 }
 
+/* Keep source geometry for renderer sampling. Native rewrites only the exposed
+ * Connection/ConnectionTrace geometry after final line construction. */
+static void finalize_geometry(moenotes_score_t *s) {
+    for (size_t i = 0; i < s->order_count; i++) {
+        note_t *n = &s->notes[s->order[i]];
+        const moenotes_note_view_t *v = &n->v;
+        if (!v->slide_along || (v->operate_type != MOENOTES_OP_SLIDE_CONNECTION &&
+                               v->operate_type != MOENOTES_OP_SLIDE_CONNECTION_TRACE) ||
+            v->line_id < 0)
+            continue;
+        const line_t *l = &s->lines[v->line_id];
+        const moenotes_note_view_t *a = NULL;
+        for (size_t j = 0; j < l->member_count; j++) {
+            const moenotes_note_view_t *b = &s->notes[s->line_members[l->member_offset + j]].v;
+            if (b->generated || b->slide_along)
+                continue;
+            if (a && a->position.time_ms <= v->position.time_ms &&
+                v->position.time_ms <= b->position.time_ms) {
+                judgement_sample(&v->position, a, b, &n->final_geometry);
+                n->final_lane_start = (int32_t)floor(n->final_geometry.lane_start);
+                n->final_lane_end = (int32_t)ceil(n->final_geometry.lane_end);
+                n->has_final_geometry = 1;
+                break;
+            }
+            a = b;
+        }
+    }
+}
+
+static void expose_note(const note_t *n, moenotes_note_view_t *out) {
+    *out = n->v;
+    if (n->has_final_geometry) {
+        out->lane_start_float = n->final_geometry.lane_start;
+        out->lane_end_float = n->final_geometry.lane_end;
+        out->width = n->final_geometry.width;
+        out->lane_start = n->final_lane_start;
+        out->lane_end = n->final_lane_end;
+    }
+}
+
 static moenotes_result_t inflate_input(const moenotes_allocator_t *a, const void *data, size_t size,
                                        unsigned char **out, size_t *length) {
-    if (size > MAX_INPUT)
+    if (size > MAX_CHART_INPUT)
         return MOENOTES_ERR_RANGE;
     if (size < 2 || ((const unsigned char *)data)[0] != 0x1f ||
         ((const unsigned char *)data)[1] != 0x8b) {
@@ -1256,7 +1326,7 @@ static moenotes_result_t inflate_input(const moenotes_allocator_t *a, const void
             break;
         }
         if (!z.avail_out) {
-            if (cap == MAX_INPUT) {
+            if (cap == MAX_CHART_INPUT) {
                 result = MOENOTES_ERR_RANGE;
                 break;
             }
@@ -1345,7 +1415,8 @@ moenotes_result_t moenotes_score_parse(const void *data, size_t size,
         merge_graph(s);
         if ((!o->add_flick_hidden || add_hidden(s)) && (!o->slide_combo_unit || add_combos(s)) &&
             build_order(s))
-            build_indices(s);
+            if (build_indices(s))
+                finalize_geometry(s);
     }
     yyjson_doc_free(doc);
     result = s->error;
@@ -1380,6 +1451,15 @@ int32_t moenotes_score_lane_count(const moenotes_score_t *s) { return s ? LANES 
 uint32_t moenotes_score_warnings(const moenotes_score_t *s) { return s ? s->warnings : 0; }
 moenotes_result_t moenotes_score_note_at(const moenotes_score_t *s, size_t index,
                                          moenotes_note_view_t *out) {
+    if (!s || !out)
+        return MOENOTES_ERR_INVALID_ARGUMENT;
+    if (index >= s->order_count)
+        return MOENOTES_ERR_RANGE;
+    expose_note(&s->notes[s->order[index]], out);
+    return MOENOTES_OK;
+}
+moenotes_result_t moenotes_score_source_note_at(const moenotes_score_t *s, size_t index,
+                                                moenotes_note_view_t *out) {
     if (!s || !out)
         return MOENOTES_ERR_INVALID_ARGUMENT;
     if (index >= s->order_count)
@@ -1441,6 +1521,91 @@ moenotes_result_t moenotes_score_event_value_at(const moenotes_score_t *s, size_
     *out = s->events[index].values[value];
     return MOENOTES_OK;
 }
+size_t moenotes_score_call_rhythm_count(const moenotes_score_t *s, size_t index) {
+    if (!s || index >= s->event_count || s->events[index].v.type != MOENOTES_EVENT_CALL)
+        return 0;
+    const event_t *e = &s->events[index];
+    size_t count = 0;
+    for (size_t i = 0; i < e->v.value_count; i++)
+        count += e->values[i] == 1;
+    return count;
+}
+moenotes_result_t moenotes_score_call_rhythm_at(const moenotes_score_t *s, size_t index,
+                                               size_t rhythm, double *out) {
+    if (!s || !out)
+        return MOENOTES_ERR_INVALID_ARGUMENT;
+    if (index >= s->event_count || s->events[index].v.type != MOENOTES_EVENT_CALL)
+        return MOENOTES_ERR_RANGE;
+    const event_t *e = &s->events[index];
+    for (size_t i = 0; i < e->v.value_count; i++)
+        if (e->values[i] == 1) {
+            if (!rhythm) {
+                *out = ((float)i + 1.0f) / (float)e->v.value_count;
+                return MOENOTES_OK;
+            }
+            rhythm--;
+        }
+    return MOENOTES_ERR_RANGE;
+}
+size_t moenotes_score_bar_line_count(const moenotes_score_t *s) {
+    if (!s)
+        return 0;
+    int32_t bar = 0;
+    for (size_t i = 0; i < s->note_count; i++)
+        if (!s->notes[i].v.generated && s->notes[i].v.position.bar > bar)
+            bar = s->notes[i].v.position.bar;
+    return (size_t)bar + 1;
+}
+moenotes_result_t moenotes_score_bar_line_at(const moenotes_score_t *s, size_t index,
+                                            moenotes_position_t *out) {
+    if (!s || !out)
+        return MOENOTES_ERR_INVALID_ARGUMENT;
+    if (index >= moenotes_score_bar_line_count(s) || index > INT32_MAX)
+        return MOENOTES_ERR_RANGE;
+    const sig_t *g = sig_at_bar(s, (int32_t)index);
+    int64_t tick = (int64_t)g->tick + ((int64_t)index - g->bar) * g->length;
+    if (tick < 0 || tick > INT32_MAX || !position(s, (int32_t)tick, out))
+        return MOENOTES_ERR_RANGE;
+    return MOENOTES_OK;
+}
+static float last_position_key(const moenotes_score_t *s) {
+    float key = -1.0f;
+    for (size_t i = 0; i < s->order_count; i++) {
+        const moenotes_position_t *p = &s->notes[s->order[i]].v.position;
+        float current = (float)p->bar + (float)p->bar_progress;
+        if (current > key)
+            key = current;
+    }
+    return key;
+}
+size_t moenotes_score_last_timing_note_count(const moenotes_score_t *s) {
+    if (!s)
+        return 0;
+    float key = last_position_key(s);
+    size_t count = 0;
+    for (size_t i = 0; i < s->order_count; i++) {
+        const moenotes_position_t *p = &s->notes[s->order[i]].v.position;
+        count += (float)p->bar + (float)p->bar_progress == key;
+    }
+    return count;
+}
+moenotes_result_t moenotes_score_last_timing_note_at(const moenotes_score_t *s, size_t index,
+                                                    moenotes_note_view_t *out) {
+    if (!s || !out)
+        return MOENOTES_ERR_INVALID_ARGUMENT;
+    float key = last_position_key(s);
+    for (size_t i = 0; i < s->order_count; i++) {
+        const moenotes_position_t *p = &s->notes[s->order[i]].v.position;
+        if ((float)p->bar + (float)p->bar_progress == key) {
+            if (!index) {
+                expose_note(&s->notes[s->order[i]], out);
+                return MOENOTES_OK;
+            }
+            index--;
+        }
+    }
+    return MOENOTES_ERR_RANGE;
+}
 size_t moenotes_score_line_count(const moenotes_score_t *s) { return s ? s->line_count : 0; }
 static const note_t *note_by_id(const moenotes_score_t *s, int32_t id) {
     if (!s || id < s->first_id)
@@ -1449,6 +1614,24 @@ static const note_t *note_by_id(const moenotes_score_t *s, int32_t id) {
     if (i >= s->note_count || s->notes[i].alias != SIZE_MAX)
         return NULL;
     return &s->notes[i];
+}
+moenotes_result_t moenotes_score_note_fever_event(const moenotes_score_t *s, int32_t id,
+                                                 int32_t *out) {
+    if (!s || !out)
+        return MOENOTES_ERR_INVALID_ARGUMENT;
+    const note_t *n = note_by_id(s, id);
+    if (!n)
+        return MOENOTES_ERR_RANGE;
+    *out = -1;
+    for (size_t i = 0; i < s->event_count; i++) {
+        const moenotes_event_t *e = &s->events[i].v;
+        if (e->type == MOENOTES_EVENT_FEVER && e->position.time_ms <= n->v.position.time_ms &&
+            n->v.position.time_ms <= e->end_position.time_ms) {
+            *out = (int32_t)i;
+            break;
+        }
+    }
+    return MOENOTES_OK;
 }
 size_t moenotes_score_note_line_count(const moenotes_score_t *s, int32_t id) {
     const note_t *n = note_by_id(s, id);
@@ -1473,7 +1656,7 @@ moenotes_result_t moenotes_score_line_member_at(const moenotes_score_t *s, int32
         return MOENOTES_ERR_INVALID_ARGUMENT;
     if (id < 0 || (size_t)id >= s->line_count || index >= s->lines[id].member_count)
         return MOENOTES_ERR_RANGE;
-    *out = s->notes[s->line_members[s->lines[id].member_offset + index]].v;
+    expose_note(&s->notes[s->line_members[s->lines[id].member_offset + index]], out);
     return MOENOTES_OK;
 }
 moenotes_result_t moenotes_score_line_at(const moenotes_score_t *s, size_t index,
