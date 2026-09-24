@@ -21,13 +21,23 @@ the native deserializer.
 
 ## Validation Scope
 
-An external historical corpus contains 203 files: 139 SS JSON and 64 legacy
-SUS-like text charts. All 139 JSON files pass the compatibility runner in base,
-generated-note, mirrored, deterministic-rerun, and gzip modes, totaling 695
-successful parses per run. The runner checks IDs, references, finite geometry,
-determinism, gzip equivalence, and source-geometry mirror invariants.
-The 64 text charts return `MOENOTES_ERR_UNSUPPORTED`; a SUS parser is not
-implemented. No game charts or native binaries are distributed here.
+The current external corpus contains 356 SS JSON charts (340 song charts and
+16 auxiliary charts). All pass the compatibility runner in base, generated-note,
+mirrored, deterministic-rerun, and gzip modes: 1,780 parses per build. Checks
+include IDs, references, geometry, source and generated mirror invariants,
+canonical branch endpoints, and line memberships. Four additional SUS-like
+text assets return `MOENOTES_ERR_UNSUPPORTED`.
+
+With derived combos enabled, all 340 song totals match the available package
+master after the v0.2.0 timing correction (v0.1.0 matched 321). This aggregate
+comparison is supplementary evidence: the package master and downloaded chart
+versions are not independently bound, and equal counts do not prove equal nodes.
+146 JSON inputs retain shared-endpoint warnings.
+
+A separate historical corpus had 139 JSON charts and 64 legacy text charts;
+that was the v0.1.0 baseline, not an additional current-corpus test or a claim
+that all historical formats are supported. Real game charts and native binaries
+are not distributed here.
 
 Synthetic regressions cover automatic positions, separate edge easing,
 compact signatures, events, relative combos, guide overlaps, shared endpoints,
@@ -52,11 +62,14 @@ The prototype must not be used as a correctness oracle.
 - Nonmonotonic line nodes are preserved rather than silently reordered, and
   flagged with `MOENOTES_WARNING_NONMONOTONIC_LINE`. Sampling and derived combos
   on these lines are not authoritative.
-- Same-tick creator ordering, Flick-slot interactions, and the native pairing
-  cache remain unverified. Pair links cover common simultaneous candidates,
-  not every guide exception or native ordering rule.
-- Tick-space rendering samples are distinct from time-space gameplay geometry.
-  Same-time fallback behavior and all native mirror paths are not fully proven.
+- Pairing now follows the six-type candidate cache, begin/hidden/other creation
+  priorities, and bar/progress equality. Three-way simultaneous links can be
+  asymmetric. Full native collection/alias ordering and Flick-slot interactions
+  have not been replayed end to end.
+- Tick-space rendering samples are distinct from creator geometry. Mirror
+  preserves source easing for the latter and reflects independent edges for
+  rendering. Equal-millisecond bar/progress fallback is implemented. Neither
+  sampler is a complete native renderer or gameplay hitbox evaluator.
 - The library does not implement judgement windows, skill execution, card/team
   bonuses, or final gameplay scoring. Commands are data projections only.
 - There is no full native-converter differential harness or live-client

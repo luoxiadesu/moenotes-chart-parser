@@ -8,7 +8,8 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-Assertions remain enabled in Release tests. The API contract test pins v0.1.0
+Assertions remain enabled in Release tests. The API contract test pins the
+retained declarations and v0.2.0 additions:
 enum values, public structure field types/offsets/sizes, function signatures,
 defaults, null handling, and selected behavioral contracts. It is a regression
 guard, not an exhaustive ABI or semantic proof. Do not change the baseline

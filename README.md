@@ -4,8 +4,9 @@ MoeNotes Chart Parser is an offline C17 library and command-line tool for readin
 MoeNotes SS JSON charts. It provides note geometry, timing, line relationships,
 and chart events for preview renderers and analysis tools.
 
-Version **0.1.0** establishes the public `moenotes_*` API baseline. This project
-is an independent format reconstruction, not a client-equivalent gameplay or
+Version **0.2.0** corrects note timing, mirroring, and creator-style pairing.
+See the [migration guide](docs/api.md#migration-from-v01x) for behavior changes.
+This project is an independent format reconstruction, not a client-equivalent gameplay or
 scoring engine. It does not download charts, connect to game services, or include
 game assets.
 
@@ -13,18 +14,19 @@ game assets.
 
 - JSON and gzip-compressed JSON, parsed directly from memory.
 - Tap, flick, trace, long, and guide notes, including hidden control points.
-- BPM changes, time signatures, and tick-to-time conversion.
+- BPM changes, time signatures, and separate tick-clock and source-note-clock queries.
 - Automatic positions, independent edge easing, floating-point widths, and mirroring.
-- Visibility, alpha, critical flags, line memberships, and tick-space line sampling.
+- Visibility, alpha, critical flags, indexed line memberships, and source-branch endpoints.
+- Separate rendering and experimental judgement-geometry line sampling.
 - Skill, fever, and call events, including call timing arrays.
 - Explicit errors, copy-based accessors, and optional custom allocators.
 - Opt-in, experimental Combo/ComboSkip and explicitly associated Flick-hidden nodes.
 
-All 139 JSON charts in an external historical corpus pass the compatibility
-runner. The corpus also contains 64 legacy SUS-like text charts, which are
-**not supported**. Native graph ordering and exact gameplay-derived values remain
-partially unverified. See [Compatibility](docs/compatibility.md) for the tested
-scope and known limitations. Successful parsing does not prove native equivalence.
+All 356 JSON charts in the current external corpus pass default, derived,
+mirrored, repeated, and gzip compatibility checks. Four additional legacy
+SUS-like text assets remain **unsupported**. Bounded native-function tests
+support the timing and geometry corrections; complete native graph equivalence
+remains unverified. See [Compatibility](docs/compatibility.md).
 
 ## Installation
 
@@ -53,7 +55,7 @@ Linux with GCC 13 and Clang 18 is tested; Windows and Android NDK are not yet va
 In a consuming CMake project:
 
 ```cmake
-find_package(moenotes-chart-parser 0.1.0 CONFIG REQUIRED)
+find_package(moenotes-chart-parser 0.2.0 CONFIG REQUIRED)
 target_link_libraries(your_app PRIVATE moenotes::chart_parser)
 ```
 
@@ -117,7 +119,8 @@ moenotes-chart-parser parse chart.json --combo-unit 8 --flick-hidden > derived.j
 | `--flick-hidden` | Enable experimental hidden nodes for explicit Flick line-slot associations. |
 
 `parse` writes one JSON object to stdout, with notes, BPM/signature events,
-additional events, warning flags, and counts. Diagnostics go to stderr.
+additional events, source lines with canonical endpoints/members, warning flags,
+and counts. Diagnostics go to stderr.
 Exit codes are `0` for success, `1` for read/parse failures, and `2` for invalid
 arguments. `--flick-hidden` normally adds nothing to native SS JSON, whose
 standalone Flicks do not carry line-slot associations.
@@ -131,8 +134,8 @@ standalone Flicks do not carry line-slot associations.
 - [Development](docs/development.md): tests, sanitizers, fuzzing, and release checks.
 - [Changelog](CHANGELOG.md): version history and migration notes.
 
-Versions use `MAJOR.MINOR.PATCH`. The v0.1.x public C API is frozen;
-compatible fixes must preserve existing declarations and structure layouts.
+Versions use `MAJOR.MINOR.PATCH`. Compatible fixes within a minor series
+preserve existing declarations and structure layouts.
 Experimental algorithm outputs may be corrected without changing the interface.
 Breaking changes require an explicitly documented version boundary, never a
 silent patch update. See the API reference for the full policy.

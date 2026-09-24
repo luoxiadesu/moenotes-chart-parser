@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Frozen v0.1.0 declarations: do not update these to hide a breaking change. */
+/* v0.2.0 keeps the existing declaration layouts; behavioral migration is documented. */
 #define ENUM_VALUE(name, value) _Static_assert(name == value, #name " changed")
 ENUM_VALUE(MOENOTES_OK, 0);
 ENUM_VALUE(MOENOTES_ERR_INVALID_ARGUMENT, 1);
@@ -108,6 +108,13 @@ ENUM_VALUE(MOENOTES_WARNING_SHARED_ENDPOINT, 2);
     X(S, double, lane_start) \
     X(S, double, lane_end) \
     X(S, double, width)
+#define LINE(X, S) \
+    X(S, int32_t, id) \
+    X(S, int32_t, line_index) \
+    X(S, int32_t, source_index) \
+    X(S, int32_t, begin_note_id) \
+    X(S, int32_t, end_note_id) \
+    X(S, uint8_t, guide)
 #define BPM(X, S) \
     X(S, int32_t, tick) \
     X(S, double, bpm) \
@@ -140,6 +147,7 @@ CHECK_LAYOUT(moenotes_position_t, POSITION)
 CHECK_LAYOUT(moenotes_note_view_t, NOTE)
 CHECK_LAYOUT(moenotes_event_t, EVENT)
 CHECK_LAYOUT(moenotes_line_sample_t, SAMPLE)
+CHECK_LAYOUT(moenotes_line_view_t, LINE)
 CHECK_LAYOUT(moenotes_bpm_event_t, BPM)
 CHECK_LAYOUT(moenotes_signature_event_t, SIGNATURE)
 CHECK_LAYOUT(moenotes_command_t, COMMAND)
@@ -168,16 +176,22 @@ FUNCTION(moenotes_score_signature_at, moenotes_result_t, const moenotes_score_t 
          moenotes_signature_event_t *);
 FUNCTION(moenotes_score_position_at_tick, moenotes_result_t, const moenotes_score_t *, int32_t,
          moenotes_position_t *);
+FUNCTION(moenotes_score_note_position_at_tick, moenotes_result_t, const moenotes_score_t *, int32_t,
+         moenotes_position_t *);
 FUNCTION(moenotes_score_event_count, size_t, const moenotes_score_t *);
 FUNCTION(moenotes_score_event_at, moenotes_result_t, const moenotes_score_t *, size_t,
          moenotes_event_t *);
 FUNCTION(moenotes_score_event_value_at, moenotes_result_t, const moenotes_score_t *, size_t,
          size_t, int32_t *);
 FUNCTION(moenotes_score_line_count, size_t, const moenotes_score_t *);
+FUNCTION(moenotes_score_line_at, moenotes_result_t, const moenotes_score_t *, size_t,
+         moenotes_line_view_t *);
 FUNCTION(moenotes_score_note_line_count, size_t, const moenotes_score_t *, int32_t);
 FUNCTION(moenotes_score_note_line_at, moenotes_result_t, const moenotes_score_t *, int32_t,
          size_t, int32_t *);
 FUNCTION(moenotes_score_sample_line, moenotes_result_t, const moenotes_score_t *, int32_t,
+         int32_t, moenotes_line_sample_t *);
+FUNCTION(moenotes_score_sample_judgement_line, moenotes_result_t, const moenotes_score_t *, int32_t,
          int32_t, moenotes_line_sample_t *);
 FUNCTION(moenotes_score_line_member_count, size_t, const moenotes_score_t *, int32_t);
 FUNCTION(moenotes_score_line_member_at, moenotes_result_t, const moenotes_score_t *, int32_t,
@@ -301,6 +315,6 @@ int main(void) {
     assert(strcmp(version, moenotes_version_string()) == 0);
     test_null_accessors();
     test_contract();
-    puts("v0.1.0 API contract passed");
+    puts("v0.2.0 API contract passed");
     return 0;
 }

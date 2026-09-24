@@ -5,6 +5,31 @@ All notable project changes are recorded here. Versions use
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
+**Behavioral migration from 0.1.x:** source-note times now use the creator's
+float32 bar/progress clock; public mirror easing remains in source order;
+pairing includes normal slide ends and retains the previous-candidate cache.
+Existing C declarations and layouts are preserved. Rebuild cached chart output
+and follow [the migration guide](docs/api.md#migration-from-v01x).
+
+- Add `moenotes_score_note_position_at_tick`, keeping the existing tick-clock
+  query for event anchors; check finite/range bounds before time conversion.
+- Fix ComboSkip thresholds to query BPM by candidate time, use note-clock
+  endpoints, and identify the first/last entries of the full candidate list.
+- Correct asymmetric-easing Combo mirrors and equal-millisecond interpolation;
+  add a separate experimental judgement-line sampling function.
+- Apply begin/hidden/other creation priorities and all six pair-candidate types.
+  Pair links can be asymmetric after later assignments.
+- Add `moenotes_line_view_t` / `moenotes_score_line_at` and CLI `lines` output;
+  preserve the origin of generated nodes on shared-begin branches.
+- Index line members, reverse memberships, and judgement commands at parse time
+  instead of rescanning the chart on each accessor call.
+- Add native-derived synthetic regressions and extend corpus mirror checks to
+  generated nodes and branch membership checks. Current 356 JSON inputs pass;
+  all 340 song counts match the available master, without claiming full native
+  equivalence. Shared graph warnings and unsupported legacy formats remain.
+
 ## [0.1.0] - 2026-09-23
 
 First versioned release and public C API baseline. The interface is frozen for
@@ -57,5 +82,6 @@ the v0.1.x series; experimental derived values remain subject to corrections.
 - Windows and Android NDK builds are unvalidated. See
   [Compatibility](docs/compatibility.md) for the complete scope.
 
-[Unreleased]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luoxiadesu/moenotes-chart-parser/releases/tag/v0.1.0

@@ -5,11 +5,11 @@
 #include <stdint.h>
 
 #define MOENOTES_VERSION_MAJOR 0
-#define MOENOTES_VERSION_MINOR 1
+#define MOENOTES_VERSION_MINOR 2
 #define MOENOTES_VERSION_PATCH 0
-#define MOENOTES_VERSION_STRING "0.1.0"
+#define MOENOTES_VERSION_STRING "0.2.0"
 
-/* Public v0.1.0 contract: see docs/api.md for ownership and compatibility. */
+/* Public v0.2.0 contract: see docs/api.md for ownership and migration. */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -148,6 +148,16 @@ typedef struct moenotes_line_sample {
     double width;
 } moenotes_line_sample_t;
 
+/* Source-branch endpoints; shared canonical notes can have several branches. */
+typedef struct moenotes_line_view {
+    int32_t id;
+    int32_t line_index;
+    int32_t source_index;
+    int32_t begin_note_id;
+    int32_t end_note_id;
+    uint8_t guide;
+} moenotes_line_view_t;
+
 typedef enum moenotes_warning {
     MOENOTES_WARNING_NONE = 0,
     MOENOTES_WARNING_NONMONOTONIC_LINE = 1u << 0,
@@ -206,18 +216,27 @@ moenotes_result_t moenotes_score_signature_at(const moenotes_score_t *score, siz
                                               moenotes_signature_event_t *out_event);
 moenotes_result_t moenotes_score_position_at_tick(const moenotes_score_t *score, int32_t tick,
                                                   moenotes_position_t *out_position);
+/* Source-note clock; unlike position_at_tick, uses the creator's bar-time path. */
+moenotes_result_t moenotes_score_note_position_at_tick(const moenotes_score_t *score, int32_t tick,
+                                                       moenotes_position_t *out_position);
 size_t moenotes_score_event_count(const moenotes_score_t *score);
 moenotes_result_t moenotes_score_event_at(const moenotes_score_t *score, size_t index,
                                           moenotes_event_t *out_event);
 moenotes_result_t moenotes_score_event_value_at(const moenotes_score_t *score, size_t event_index,
                                                 size_t value_index, int32_t *out_value);
 size_t moenotes_score_line_count(const moenotes_score_t *score);
+moenotes_result_t moenotes_score_line_at(const moenotes_score_t *score, size_t index,
+                                         moenotes_line_view_t *out_line);
 size_t moenotes_score_note_line_count(const moenotes_score_t *score, int32_t note_id);
 moenotes_result_t moenotes_score_note_line_at(const moenotes_score_t *score, int32_t note_id,
                                               size_t index, int32_t *out_line_id);
 /* Samples source geometry in tick space, not gameplay judgement geometry. */
 moenotes_result_t moenotes_score_sample_line(const moenotes_score_t *score, int32_t line_id,
                                              int32_t tick, moenotes_line_sample_t *out_sample);
+/* Experimental creator geometry: note time and a single source-left easing.
+ * This is interpolation only, not a full gameplay judgement-area evaluator. */
+moenotes_result_t moenotes_score_sample_judgement_line(const moenotes_score_t *score, int32_t line_id,
+                                                       int32_t tick, moenotes_line_sample_t *out_sample);
 size_t moenotes_score_line_member_count(const moenotes_score_t *score, int32_t line_id);
 moenotes_result_t moenotes_score_line_member_at(const moenotes_score_t *score, int32_t line_id,
                                                 size_t index, moenotes_note_view_t *out_note);

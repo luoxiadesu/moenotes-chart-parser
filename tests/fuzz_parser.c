@@ -15,6 +15,23 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         for (size_t i = 0; i < moenotes_score_note_count(s); i++) {
             moenotes_note_view_t n;
             moenotes_score_note_at(s, i, &n);
+            moenotes_position_t p;
+            moenotes_score_note_position_at_tick(s, n.tick, &p);
+            for (size_t j = 0; j < moenotes_score_note_line_count(s, n.id); j++) {
+                int32_t line_id;
+                moenotes_score_note_line_at(s, n.id, j, &line_id);
+            }
+        }
+        for (size_t i = 0; i < moenotes_score_line_count(s); i++) {
+            moenotes_line_view_t line;
+            moenotes_score_line_at(s, i, &line);
+            for (size_t j = 0; j < moenotes_score_line_member_count(s, line.id); j++) {
+                moenotes_note_view_t n;
+                moenotes_score_line_member_at(s, line.id, j, &n);
+                moenotes_line_sample_t sample;
+                moenotes_score_sample_line(s, line.id, n.tick, &sample);
+                moenotes_score_sample_judgement_line(s, line.id, n.tick, &sample);
+            }
         }
         moenotes_score_free(s);
     }

@@ -2,8 +2,10 @@
 
 ## Version and Stability
 
-**v0.1.0 is the frozen public C API baseline.** The supported interface consists
-of the declarations in `include/moenotes_chart_parser.h`, the documented
+**v0.2.0 changes note timing, mirror metadata, and pairing behavior.**
+Existing function signatures and structure layouts are retained; see
+[Migration from v0.1.x](#migration-from-v01x) before updating consumers. The supported
+interface consists of the declarations in `include/moenotes_chart_parser.h`, the documented
 behavior here, and the CMake target `moenotes::chart_parser`. The original build
 target `moenotes_chart_parser` remains available for source-tree builds.
 Private implementation details and vendored yyjson symbols are not public API.
@@ -12,7 +14,7 @@ Versions follow `MAJOR.MINOR.PATCH`:
 
 - **PATCH**: compatible fixes and documentation changes. Existing symbols,
   signatures, enum values, field types/order/layouts, defaults, and ownership
-  contracts are preserved throughout v0.1.x.
+  contracts are preserved within each minor series.
 - **MINOR**: additive features are preferred. During 0.x development, an
   unavoidable incompatible change requires a new minor version, a prominent
   changelog entry, and a migration guide. A new minor version is not permission
@@ -27,8 +29,8 @@ values must not be renumbered. Ordinary additions belong in a minor release.
 The installed CMake package accepts compatible versions in the same minor series.
 
 This is a source compatibility contract, with structure layouts preserved for
-the same compiler ABI within v0.1.x. It is not a cross-platform binary ABI
-guarantee: only a static library is provided. Use matching headers and library,
+the same compiler ABI within each minor series. It is not a cross-platform binary
+ABI guarantee: only a static library is provided. Use matching headers and library,
 and do not alter enum size, structure packing, or floating-point semantics.
 Do not enable fast-math. C++ consumers can include the header directly.
 
@@ -123,10 +125,10 @@ input, options, and version, but are neither native IDs nor persistent identifie
 | `critical`, `visible` | Source flags, independent of judgement classification. |
 | `slide_along`, `pos_auto` | Automatic-position metadata for line nodes. |
 | `direction` | `NORMAL=0`, `LEFT=1`, `RIGHT=2`; mirror swaps left/right. |
-| `ease_left`, `ease_right` | Edge easing for the following segment: `LINEAR=0`, `OUT=1`, `IN=2`. |
+| `ease_left`, `ease_right` | Source edge easing: `LINEAR=0`, `OUT=1`, `IN=2`. Mirror preserves their order. Rendering sampling handles reflected edges internally. |
 | `alpha` | `NONE=0`, `FADE_IN=1`, `FADE_OUT=2`; metadata, not an evaluated opacity. |
-| `pair_note_id` | Common simultaneous-note partner, or -1. Pair reconstruction is incomplete. |
-| `parent_note_id` | Canonical line-begin note ID, including on the begin itself, or -1. |
+| `pair_note_id` | Creator-style cached partner, or -1. With three or more simultaneous candidates, older links can be asymmetric. |
+| `parent_note_id` | Canonical begin of the primary line, including on the begin itself, or -1. Use line memberships and `line_at` for every shared branch. |
 | `hidden_for_note_id` | Source Flick ID for a generated hidden node, otherwise -1. |
 | `line_id` | Primary line ID, or -1 for a standalone note. |
 | `line_index` | Reusable slot 0..19 per line kind, or -1 for standalone notes; not a line ID. |
@@ -157,9 +159,22 @@ at tick zero when necessary. Ticks and times are nonnegative int32 values.
 `moenotes_position_t`: `bar` is zero-based, `rhythm` is the tick offset in the
 bar, `rhythmic_unit` is that bar's length in ticks, `bar_progress` is its
 fractional progress, and `time_ms` is elapsed integer milliseconds.
-Source-note positions use the same representation. **Experimental generated
-combo positions instead express `rhythm`/`rhythmic_unit` on a relative-eighth
-subdivision grid**; use `bar_progress`, `tick`, and `time_ms` for a unified
+This function uses the **tick clock**, also used for event anchors.
+
+`moenotes_score_note_position_at_tick(score, tick, out_position)` uses the same
+bar/rhythm representation but calculates **source-note time** through the
+creator's float32 bar/progress path. Source notes and commands use this clock.
+It can differ from the tick clock, including at event boundaries.
+
+The creator clock selects BPM and signature events strictly before the target
+bar/progress and uses the latest elapsed-time anchor among them. The tick clock
+selects segments at or before the target tick. The creator's internal initial
+BPM is 160; the inserted tick-zero BPM default remains 120, and applies to
+positive positions. Do not merge these two clocks or clamp their differences.
+Unrepresentable or negative results return a range error.
+
+**Experimental generated combo positions instead express `rhythm`/`rhythmic_unit`
+on a relative-eighth subdivision grid**; use `bar_progress`, `tick`, and `time_ms` for a unified
 timeline. Re-querying a generated tick need not reproduce its rounded position.
 
 | Function | Output |
@@ -173,7 +188,7 @@ timeline. Re-querying a generated tick need not reproduce its rounded position.
 | `moenotes_score_event_value_at(score, event_index, value_index, out_value)` | One raw int32 call-timing value. |
 
 BPMs/signatures are tick-sorted; duplicate ticks retain source order and the
-last entry at that tick is effective. Extra events are grouped by type
+last entry at that tick is effective for the tick clock. Extra events are grouped by type
 (`SKILL=0`, `FEVER=1`, `CALL=2`), each in source order, not globally sorted.
 For skill/call events, end equals start. Fever stores its explicit end.
 Only call events have `value_count` entries. Call values are retained as data,
@@ -184,11 +199,13 @@ not interpreted as absolute ticks or scheduled commands.
 | Function | Contract |
 | --- | --- |
 | `moenotes_score_line_count(score)` | Number of source long/guide lines. Valid IDs are 0..count-1. |
+| `moenotes_score_line_at(score, index, out_line)` | Source-branch ID, slot, source index, canonical begin/end IDs, and guide flag. |
 | `moenotes_score_note_line_count(score, note_id)` | Membership count; 0 for absent IDs or standalone notes. |
 | `moenotes_score_note_line_at(score, note_id, index, out_line_id)` | Membership in ascending line-ID order; an unknown ID is a range error. |
 | `moenotes_score_line_member_count(score, line_id)` | Number of exposed members; 0 for invalid lines. |
 | `moenotes_score_line_member_at(score, line_id, index, out_note)` | Member copy in global tick/ID order, including generated members. |
 | `moenotes_score_sample_line(score, line_id, tick, out_sample)` | Source geometry in tick space over the inclusive first-to-last tick range. |
+| `moenotes_score_sample_judgement_line(score, line_id, tick, out_sample)` | Experimental creator geometry at a source tick: note-clock ratio, one source-left easing, and bar/progress fallback for equal milliseconds. |
 | `moenotes_score_warnings(score)` | Bitmask of nonfatal compatibility warnings. |
 
 Shared endpoints can belong to multiple lines. A returned canonical note's
@@ -196,12 +213,22 @@ primary `line_id` can differ from the requested membership. Preserve all
 memberships when drawing branches. Member enumeration is a timeline view, not
 a guarantee of original source-node order on nonmonotonic inputs.
 
+`moenotes_line_view_t` contains `id`, `line_index`, `source_index`,
+`begin_note_id`, `end_note_id`, and `guide`. It describes a source branch, not a
+mutable native `ConnectionNote.LineEndNote` field. Shared begins can have several
+ends; shared ends can have several begins. Each canonical note appears once per
+line. Line/member and reverse membership accessors use precomputed indices.
+
 Sampling returns `moenotes_line_sample_t` with `lane_start`, inclusive
 `lane_end`, and `width`. It interpolates between explicit anchors using separate
 left/right eases, skipping interior auto nodes as anchors. This is a rendering
 helper, **not gameplay judgement-area interpolation**. It does not evaluate
-visibility or alpha. Nonmonotonic and complex shared-line behavior is not
-authoritative; see [Compatibility](compatibility.md).
+visibility or alpha. The judgement sampler uses source notes on the specified
+branch, skips interior auto anchors, and clamps its eased ratio. Its input tick
+is converted with the note clock; querying a rounded generated tick need not
+reproduce a generated node's exact fractional position. It does not apply
+judgement windows, hitbox offsets, or gameplay logic. Nonmonotonic and complex
+shared-line behavior is not authoritative; see [Compatibility](compatibility.md).
 
 | Warning | Value | Meaning |
 | --- | --- | --- |
@@ -240,6 +267,31 @@ or unrepresentable times return `MOENOTES_ERR_RANGE`. Output contents are
 unspecified on error and must not be used. Indices are zero-based.
 Count queries, lane count, warnings, and full-combo count return zero for a NULL
 score. No function accepts dangling pointers or synchronizes destruction.
+
+## Migration from v0.1.x
+
+- Update CMake consumers to `find_package(moenotes-chart-parser 0.2.0 CONFIG REQUIRED)`.
+  Same-minor package matching intentionally rejects an unchanged 0.1 requirement.
+- Rebuild cached parsed data. Source note times, Combo/ComboSkip classifications,
+  generated IDs, pairing, and mirrored derived geometry can change. Existing
+  enum numbers, structure layouts, option defaults, and ownership remain unchanged.
+- Keep `position_at_tick` for event/tick timing. Use `note_position_at_tick` to
+  reproduce a source note's position; the old source-note/tick-clock equality
+  is no longer a contract. Commands carry the corrected note time.
+- Mirror no longer swaps the public `ease_left`/`ease_right` fields. Use
+  `sample_line` for reflected rendering geometry and `sample_judgement_line`
+  for the experimental creator interpolation; do not conflate these outputs.
+- Pair candidates are Normal, SlideBegin, SlideEnd, Flick, SlideBeginFlick, and
+  SlideEndFlick. Creator ordering puts begins before hidden nodes before other
+  nodes within each float bar/progress bucket, with deterministic source-bucket
+  order for ties. Pair links follow the previous-candidate cache and may be
+  asymmetric after later assignments; remove disjoint-pair/symmetry assumptions.
+- Use `line_at` and all note memberships to obtain shared-branch begin/end links.
+  Generated `source_index` identifies its own branch even when the begin is shared.
+  CLI JSON now includes a `lines` array with canonical endpoint/member IDs.
+
+These corrections reflect bounded native analysis, not a full runtime graph
+replay. Shared-endpoint warnings remain meaningful.
 
 ## Migration from the Unversioned Prototype
 

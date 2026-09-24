@@ -109,7 +109,22 @@ int main(int argc, char **argv) {
                note.pos_auto, note.generated, note.line_index, note.hidden_for_note_id,
                note.source_index, i + 1 == n ? "" : ",");
     }
-    printf("  ],\n  \"events\": [");
+    printf("  ],\n  \"lines\": [");
+    for (size_t i = 0, count = moenotes_score_line_count(score); i < count; i++) {
+        moenotes_line_view_t line;
+        moenotes_score_line_at(score, i, &line);
+        printf("%s{\"id\":%d,\"line_index\":%d,\"source_index\":%d,\"begin_note_id\":%d,"
+               "\"end_note_id\":%d,\"guide\":%s,\"members\":[", i ? "," : "", line.id,
+               line.line_index, line.source_index, line.begin_note_id, line.end_note_id,
+               line.guide ? "true" : "false");
+        for (size_t j = 0, n = moenotes_score_line_member_count(score, line.id); j < n; j++) {
+            moenotes_note_view_t note;
+            moenotes_score_line_member_at(score, line.id, j, &note);
+            printf("%s%d", j ? "," : "", note.id);
+        }
+        printf("]}");
+    }
+    printf("],\n  \"events\": [");
     for (size_t i = 0, n = moenotes_score_event_count(score); i < n; i++) {
         moenotes_event_t e;
         moenotes_score_event_at(score, i, &e);

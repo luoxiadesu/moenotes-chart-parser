@@ -24,6 +24,15 @@ def validate(score):
     assert len(ids) == len(notes)
     assert [n["tick"] for n in notes] == sorted(n["tick"] for n in notes)
     assert score["full_combo_count"] == sum(n["judgement"] for n in notes)
+    by_id = {n["id"]: n for n in notes}
+    for i, line in enumerate(score["lines"]):
+        assert line["id"] == i
+        assert line["begin_note_id"] in line["members"]
+        assert line["end_note_id"] in line["members"]
+        assert len(line["members"]) == len(set(line["members"]))
+        assert all(n in ids for n in line["members"])
+        members = [by_id[n] for n in line["members"]]
+        assert [(n["tick"], n["id"]) for n in members] == sorted((n["tick"], n["id"]) for n in members)
     for note in notes:
         for key in ("parent_note_id", "pair_note_id", "hidden_for_note_id"):
             assert note[key] == -1 or note[key] in ids, (key, note)
@@ -67,12 +76,13 @@ def main():
                 # Integer rounding can affect endpoint merging under mirror.
                 mirrored = {n["id"]: n for n in mirror["notes"]}
                 for n in derived["notes"]:
-                    if n["generated"] or n["id"] not in mirrored:
+                    if n["id"] not in mirrored:
                         continue
                     m = mirrored[n["id"]]
                     expected = 24 - n["lane_start_float"] - n["width"]
                     assert abs(m["lane_start_float"] - expected) < 2e-4
                     assert abs(m["width"] - n["width"]) < 2e-4
+                    assert (m["ease_left"], m["ease_right"]) == (n["ease_left"], n["ease_right"])
                 stats["json_charts"] += 1
                 stats["parse_runs"] += 5
                 stats["base_notes"] += base["note_count"]
