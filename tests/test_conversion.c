@@ -198,8 +198,39 @@ static void test_indexed_ids(void) {
     assert(moenotes_score_command_at(s, count, 0, 0, 0, &command) == MOENOTES_ERR_RANGE);
     moenotes_score_free(s);
 }
+static void test_sub_beat_signatures(void) {
+    /* A 1/16 bar is half a beat, so the Combo step is two bars: the iterator
+     * must carry the remainder instead of stopping at progress 1.0, where the
+     * rhythm unit would round out of range. Issue #1 (Odd Dice, bars 36-47). */
+    moenotes_score_t *s = parse("{\"events\":{\"bpm\":[{\"t\":0,\"bpm\":120}],"
+                                "\"sig\":[{\"t\":0,\"sig\":[4,4]},{\"t\":3840,\"sig\":[1,16]}]},"
+                                "\"notes\":[{\"type\":\"long\",\"node\":[{\"t\":3840},{\"t\":4200}]}]}",
+                                1, 0);
+    moenotes_note_view_t n = generated_at(s, 4080);
+    /* The 40-tick carry lands two bars after the slide begin, inside the 1/16
+     * section, with the sub-beat unit clamped to one step. */
+    assert(n.position.bar == 4 && n.position.bar_progress == 0);
+    assert(n.position.rhythmic_unit == 1 && n.position.rhythm == 0);
+    moenotes_score_free(s);
+    /* The bar end rounds onto the last unit instead of reporting a range error. */
+    s = parse("{\"events\":{\"bpm\":[{\"t\":0,\"bpm\":120}],"
+              "\"sig\":[{\"t\":0,\"sig\":[4,4]},{\"t\":1920,\"sig\":[1,32]}]},"
+              "\"notes\":[{\"type\":\"long\",\"node\":[{\"t\":1920},{\"t\":3840}]}]}",
+              1, 0);
+    size_t generated = 0;
+    for (size_t i = 0; i < moenotes_score_note_count(s); i++) {
+        moenotes_note_view_t g = at(s, i);
+        if (g.generated) {
+            generated++;
+            assert(g.position.rhythm < g.position.rhythmic_unit);
+        }
+    }
+    assert(generated > 0);
+    moenotes_score_free(s);
+}
 int main(void) {
     test_clocks_and_thresholds();
+    test_sub_beat_signatures();
     test_mirror_and_sampling();
     test_pairing();
     test_shared_branches_and_indices();
