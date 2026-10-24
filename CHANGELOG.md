@@ -5,6 +5,15 @@ All notable project changes are recorded here. Versions use
 
 ## [Unreleased]
 
+- Fix derived Combo generation failing on sub-beat meters. A 1/16 or finer
+  signature has a Combo step of two or more bars; the iterator carried only one
+  bar and then asked for a position at progress 1.0, which reported
+  `MOENOTES_ERR_UNSUPPORTED` or `MOENOTES_ERR_RANGE` for any slide passing
+  through the section (moenotes-chart-renderer issue #1, Odd Dice). The
+  remainder is now carried across as many bars as the step spans, and
+  `position.rhythm` at a bar end clamps to the last unit instead of failing.
+  Judged notes and generated Combo ticks/times are unchanged for the 340
+  published charts; only `rhythm` on exact structural bar ends is clamped.
 ## [0.3.0] - 2026-09-24
 
 **Behavioral migration from 0.2.x:** public notes now expose final auto geometry;
