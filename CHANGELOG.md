@@ -5,6 +5,12 @@ All notable project changes are recorded here. Versions use
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-24
+
+No public declaration, layout, enum, or default changed. Rebuild consumers and
+regenerate cached output; judged notes are unchanged, only `position.rhythm` on
+exact structural bar ends is clamped.
+
 - Fix derived Combo generation failing on sub-beat meters. A 1/16 or finer
   signature has a Combo step of two or more bars; the iterator carried only one
   bar and then asked for a position at progress 1.0, which reported
@@ -13,7 +19,8 @@ All notable project changes are recorded here. Versions use
   remainder is now carried across as many bars as the step spans, and
   `position.rhythm` at a bar end clamps to the last unit instead of failing.
   Judged notes and generated Combo ticks/times are unchanged for the 340
-  published charts; only `rhythm` on exact structural bar ends is clamped.
+  published charts.
+
 ## [0.3.0] - 2026-09-24
 
 **Behavioral migration from 0.2.x:** public notes now expose final auto geometry;
@@ -116,7 +123,8 @@ the v0.1.x series; experimental derived values remain subject to corrections.
 - Windows and Android NDK builds are unvalidated. See
   [Compatibility](docs/compatibility.md) for the complete scope.
 
-[Unreleased]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luoxiadesu/moenotes-chart-parser/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luoxiadesu/moenotes-chart-parser/releases/tag/v0.1.0

@@ -2,7 +2,8 @@
 
 ## Version and Stability
 
-**v0.3.0 corrects BPM anchors, final auto geometry, and shared guide absorption.**
+**v0.3.1 fixes Combo derivation on sub-beat signatures; v0.3.0 corrected BPM anchors,
+final auto geometry, and shared guide absorption.**
 Existing function signatures and structure layouts are retained; see
 [Migration from v0.2.x](#migration-from-v02x) before updating consumers. The supported
 interface consists of the declarations in `include/moenotes_chart_parser.h`, the documented
@@ -311,7 +312,7 @@ score. No function accepts dangling pointers or synchronizes destruction.
 - Line members use native position/creation ordering. At the same tick, Hidden
   precedes Connection even when its library-local ID is larger. Global note
   enumeration retains tick/ID order.
-- Update CMake requirements to `find_package(moenotes-chart-parser 0.3.0 CONFIG REQUIRED)`.
+- Update CMake requirements to `find_package(moenotes-chart-parser 0.3.1 CONFIG REQUIRED)`.
   Existing public structure layouts and declarations are retained.
 
 ## Migration from v0.1.x

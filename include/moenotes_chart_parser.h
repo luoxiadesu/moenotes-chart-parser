@@ -6,8 +6,8 @@
 
 #define MOENOTES_VERSION_MAJOR 0
 #define MOENOTES_VERSION_MINOR 3
-#define MOENOTES_VERSION_PATCH 0
-#define MOENOTES_VERSION_STRING "0.3.0"
+#define MOENOTES_VERSION_PATCH 1
+#define MOENOTES_VERSION_STRING "0.3.1"
 
 /* Public v0.3.0 contract: see docs/api.md for ownership and migration. */
 #ifdef __cplusplus
