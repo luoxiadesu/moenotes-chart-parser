@@ -5,6 +5,21 @@ All notable project changes are recorded here. Versions use
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-25
+
+Additive option; existing callers keep byte-identical behavior.
+
+- Add `packed_native_notes` to `moenotes_parse_options_t` (default 0). When set,
+  a root object with `"format": "nnnotes.live-score/1"` and a `notes` array of
+  already-expanded native nodes is read directly: node `op`, `bar`, `rhythm`,
+  `rhythmicUnit`, `timeMs`, `laneStartFloat`, `width` and `direction` are kept,
+  no graph merge, hidden notes, Combos or master positions are derived, and the
+  result sets `MOENOTES_WARNING_PACKED_NATIVE`. Default options still reject the
+  container with `MOENOTES_ERR_SCHEMA`, as they did in 0.3.1.
+- Optional `events` on the root are read with the source-chart reader so BPM
+  segments, Fever, Skill and Call annotations survive; missing events use the
+  default 120 BPM 4/4 timeline.
+
 ## [0.3.1] - 2026-10-24
 
 No public declaration, layout, enum, or default changed. Rebuild consumers and

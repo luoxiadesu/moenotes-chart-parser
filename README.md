@@ -4,7 +4,8 @@ MoeNotes Chart Parser is an offline C17 library and command-line tool for readin
 MoeNotes SS JSON charts. It provides note geometry, timing, line relationships,
 and chart events for preview renderers and analysis tools.
 
-Version **0.3.1** fixes derived Combo generation for 1/16 and finer signatures,
+Version **0.3.2** adds opt-in packed snapshots and keeps the 0.3.1 fix for derived
+Combo generation on 1/16 and finer signatures,
 where a slide crossing a sub-beat bar failed with `MOENOTES_ERR_UNSUPPORTED` or
 `MOENOTES_ERR_RANGE`. **0.3.0** added final note geometry and event projections,
 and corrected BPM accumulation and shared guide starts.
@@ -61,7 +62,7 @@ Linux with GCC 13 and Clang 18 is tested; Windows and Android NDK are not yet va
 In a consuming CMake project:
 
 ```cmake
-find_package(moenotes-chart-parser 0.3.1 CONFIG REQUIRED)
+find_package(moenotes-chart-parser 0.3.2 CONFIG REQUIRED)
 target_link_libraries(your_app PRIVATE moenotes::chart_parser)
 ```
 

@@ -34,7 +34,7 @@ static unsigned char *read_file(const char *path, size_t *size) {
 }
 
 static void usage(const char *name) {
-    fprintf(stderr, "usage: %s parse FILE [--mirror] [--combo-unit 0|8] [--flick-hidden]\n", name);
+    fprintf(stderr, "usage: %s parse FILE [--mirror] [--combo-unit 0|8] [--flick-hidden] [--packed-native]\n", name);
     fprintf(stderr, "       %s --help | --version\n", name);
 }
 
@@ -58,6 +58,8 @@ int main(int argc, char **argv) {
             options.mirror = 1;
         else if (!strcmp(argv[i], "--flick-hidden"))
             options.add_flick_hidden = 1;
+        else if (!strcmp(argv[i], "--packed-native"))
+            options.packed_native_notes = 1;
         else if (!strcmp(argv[i], "--combo-unit") && i + 1 < argc) {
             const char *value = argv[++i];
             if (strcmp(value, "0") && strcmp(value, "8")) {

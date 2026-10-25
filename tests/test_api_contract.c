@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* v0.3.1 keeps the v0.3.0 declaration layouts; behavioral migration is documented. */
+/* v0.3.2 keeps the v0.3.x declaration layouts; behavioral migration is documented. */
 #define ENUM_VALUE(name, value) _Static_assert(name == value, #name " changed")
 ENUM_VALUE(MOENOTES_OK, 0);
 ENUM_VALUE(MOENOTES_ERR_INVALID_ARGUMENT, 1);
@@ -328,6 +328,6 @@ int main(void) {
     assert(strcmp(version, moenotes_version_string()) == 0);
     test_null_accessors();
     test_contract();
-    puts("v0.3.1 API contract passed");
+    puts("v0.3.2 API contract passed");
     return 0;
 }
